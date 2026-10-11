@@ -17,5 +17,5 @@ export default reservationRouter;
     http://localhost:3000/api/v1/my/reservations
     http://localhost:3000/api/v1/delete/reservation/:id
     http://localhost:3000/api/v1/reservation/status/:id
-
- */}
+    
+*/}
