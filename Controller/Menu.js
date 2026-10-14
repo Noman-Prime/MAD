@@ -1,5 +1,5 @@
 import Menu from "../Schema/Menu.js";
-import { cloudinaryUpload } from "../utils/Upload.js";
+import { cloudinaryUpload, cloudinary } from "../utils/Upload.js";
 
 export const createMenuItem = async (req, res) => {
     try {
@@ -102,8 +102,15 @@ export const updateMenuItem = async (req, res) => {
             });
         }
 
-        // Safely fallback req.body to an empty object if it's undefined
-        let updateData = { ...(req.body || {}) };
+        // Build update object safely from req.body
+        let updateData = {};
+        if (req.body.name !== undefined) updateData.name = req.body.name;
+        if (req.body.price !== undefined) updateData.price = Number(req.body.price);
+        if (req.body.category !== undefined) updateData.category = req.body.category;
+        if (req.body.description !== undefined) updateData.description = req.body.description;
+        if (req.body.isAvailable !== undefined) {
+            updateData.isAvailable = req.body.isAvailable === "true" || req.body.isAvailable === true;
+        }
 
         // Case 1: A new image file is uploaded via multer (memory storage buffer)
         if (req.file) {
@@ -123,7 +130,7 @@ export const updateMenuItem = async (req, res) => {
             };
         } 
         // Case 2: Image was explicitly removed from the frontend edit screen
-        else if (req.body?.removeImage === "true" || req.body?.image === null) {
+        else if (req.body?.removeImage === "true") {
             if (existingItem.image && existingItem.image.public_id) {
                 try {
                     await cloudinary.uploader.destroy(existingItem.image.public_id);
@@ -135,7 +142,7 @@ export const updateMenuItem = async (req, res) => {
         }
 
         const menuItem = await Menu.findByIdAndUpdate(id, updateData, { 
-            returnDocument: "after", 
+            new: true, 
             runValidators: true 
         });
 
@@ -145,10 +152,10 @@ export const updateMenuItem = async (req, res) => {
             menuItem,
         });
     } catch (error) {
-        console.log(error);
+        console.log("Update menu error:", error);
         return res.status(500).json({
             success: false,
-            message: "Something went wrong while updating menu item",
+            message: error.message || "Something went wrong while updating menu item",
         });
     }
 };

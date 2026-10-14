@@ -1,6 +1,9 @@
-import cloudinary from "./Cloudinary.js"
-import streamifier from "streamifier"
+import cloudinary from "./Cloudinary.js";
+import streamifier from "streamifier";
 import multer from "multer";
+
+// Export cloudinary so controllers can use it for deleting images
+export { cloudinary };
 
 export const cloudinaryUpload = (fileBuffer) => {
     if (!fileBuffer) return Promise.reject("No file buffer provided");
@@ -14,6 +17,7 @@ export const cloudinaryUpload = (fileBuffer) => {
     });
     return promise;
 };
+
 const storage = multer.memoryStorage();
 export const upload = multer({
     storage,
