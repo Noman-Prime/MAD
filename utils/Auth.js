@@ -1,9 +1,18 @@
+
 import jwt from "jsonwebtoken";
 import User from "../Schema/User.js";
 
 export const isAuthenticated = async (req, res, next) => {
     try {
-        const { token } = req.cookies;
+        const authHeader = req.headers.authorization;
+
+        const bearerToken = authHeader?.startsWith("Bearer ")
+            ? authHeader.slice(7).trim()
+            : null;
+
+        const cookieToken = req.cookies?.token;
+        const token = bearerToken || cookieToken;
+
         if (!token) {
             return res.status(401).json({
                 success: false,
@@ -12,16 +21,27 @@ export const isAuthenticated = async (req, res, next) => {
         }
 
         const decodedData = jwt.verify(token, process.env.SECRET_KEY);
+
         const user = await User.findById(decodedData.id);
 
-        if (!user || !user.isActive) {
+        if (!user) {
             return res.status(401).json({
                 success: false,
                 message: "User not found"
             });
         }
 
-        if (decodedData.tokenVersion !== user.tokenVersion) {
+        if (user.isActive === false) {
+            return res.status(401).json({
+                success: false,
+                message: "User account is inactive"
+            });
+        }
+
+        if (
+            decodedData.tokenVersion !== undefined &&
+            decodedData.tokenVersion !== user.tokenVersion
+        ) {
             return res.status(401).json({
                 success: false,
                 message: "Session expired. Please login again"
@@ -32,7 +52,18 @@ export const isAuthenticated = async (req, res, next) => {
         next();
 
     } catch (error) {
-        console.error(error);
+        if (
+            error.name === "JsonWebTokenError" ||
+            error.name === "TokenExpiredError"
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid or expired token"
+            });
+        }
+
+        console.error("Authentication error:", error);
+
         return res.status(500).json({
             success: false,
             message: "Something went wrong"
@@ -40,15 +71,15 @@ export const isAuthenticated = async (req, res, next) => {
     }
 };
 
-
 export const isManager = (...roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
+        if (!req.user || !roles.includes(req.user.role)) {
             return res.status(403).json({
                 success: false,
                 message: "You are not allowed to access this resource"
             });
         }
+
         next();
     };
 };

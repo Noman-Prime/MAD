@@ -1,33 +1,41 @@
 import Menu from "../Schema/Menu.js";
+import { cloudinaryUpload } from "../utils/Upload.js";
 
 export const createMenuItem = async (req, res) => {
     try {
-        const { name, description, price, category, image, isAvailable } = req.body;
-
-        if (!name || !description || price === undefined || !category || !image?.url) {
+        const { name, description, price, category, isAvailable } = req.body;
+        if (!name || !description || !price || !category) {
             return res.status(400).json({
                 success: false,
-                message: "Please fill all required fields including image URL",
+                message: "Please fill all required fields"
             });
         }
 
-        const menuItem = await Menu.create({ name, description, price, category, image, isAvailable: isAvailable !== undefined ? isAvailable : true });
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "Please upload an image"
+            });
+        }
+
+        const uploadImage = await cloudinaryUpload(req.file.buffer);
+        const menuItem = await Menu.create({
+            ...req.body,
+            image: {
+                public_id: uploadImage.public_id,
+                url: uploadImage.secure_url
+            }
+        });
         return res.status(201).json({
             success: true,
             message: "Menu item created successfully",
-            menuItem,
+            menuItem
         });
     } catch (error) {
-        console.log(error);
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: "A menu item with this name already exists",
-            });
-        }
+        console.log("Create menu item error:", error);
         return res.status(500).json({
             success: false,
-            message: "Something went wrong while creating menu item",
+            message: "Something went wrong while creating the menu item"
         });
     }
 };

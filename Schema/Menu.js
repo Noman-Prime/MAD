@@ -24,11 +24,11 @@ const menuSchema = new mongoose.Schema({
     image: {
         url: {
             type: String,
-            required: true
+            default:""
         },
         public_id: {
             type: String,
-            required: true
+            default: ""
         }
     },
     isAvailable: {
