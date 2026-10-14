@@ -5,7 +5,7 @@ import { upload } from "../utils/Upload.js";
 
 const menuRouter = express.Router();
 
-menuRouter.get("/menu", getAllMenuItems);
+menuRouter.get("/menu", getAllMenuItems)
 menuRouter.get("/menu/:id", getMenuItemById);
 menuRouter.post("/new/menu", isAuthenticated, isManager("Manager"), upload.single("image"), createMenuItem);
 menuRouter.put("/update/menu/:id", isAuthenticated, isManager("Manager"),upload.single("image"), updateMenuItem);
