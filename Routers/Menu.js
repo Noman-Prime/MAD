@@ -8,7 +8,7 @@ const menuRouter = express.Router();
 menuRouter.get("/menu", getAllMenuItems);
 menuRouter.get("/menu/:id", getMenuItemById);
 menuRouter.post("/new/menu", isAuthenticated, isManager("Manager"), upload.single("image"), createMenuItem);
-menuRouter.put("/update/menu/:id", isAuthenticated, isManager("Manager"), updateMenuItem);
+menuRouter.put("/update/menu/:id", isAuthenticated, isManager("Manager"),upload.single("image"), updateMenuItem);
 menuRouter.delete("/delete/menu/:id", isAuthenticated, isManager("Manager"), deleteMenuItem);
 
 export default menuRouter;

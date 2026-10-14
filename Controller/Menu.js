@@ -92,13 +92,53 @@ export const getMenuItemById = async (req, res) => {
 
 export const updateMenuItem = async (req, res) => {
     try {
-        const menuItem = await Menu.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-        if (!menuItem) {
+        const { id } = req.params;
+        const existingItem = await Menu.findById(id);
+
+        if (!existingItem) {
             return res.status(404).json({
                 success: false,
                 message: "Menu item not found",
             });
         }
+
+        // Safely fallback req.body to an empty object if it's undefined
+        let updateData = { ...(req.body || {}) };
+
+        // Case 1: A new image file is uploaded via multer (memory storage buffer)
+        if (req.file) {
+            if (existingItem.image && existingItem.image.public_id) {
+                try {
+                    await cloudinary.uploader.destroy(existingItem.image.public_id);
+                } catch (cloudinaryErr) {
+                    console.error("Error deleting old image from Cloudinary:", cloudinaryErr);
+                }
+            }
+
+            const uploadResult = await cloudinaryUpload(req.file.buffer);
+
+            updateData.image = {
+                url: uploadResult.secure_url || uploadResult.url,
+                public_id: uploadResult.public_id,
+            };
+        } 
+        // Case 2: Image was explicitly removed from the frontend edit screen
+        else if (req.body?.removeImage === "true" || req.body?.image === null) {
+            if (existingItem.image && existingItem.image.public_id) {
+                try {
+                    await cloudinary.uploader.destroy(existingItem.image.public_id);
+                } catch (cloudinaryErr) {
+                    console.error("Error deleting old image from Cloudinary:", cloudinaryErr);
+                }
+            }
+            updateData.image = null;
+        }
+
+        const menuItem = await Menu.findByIdAndUpdate(id, updateData, { 
+            returnDocument: "after", 
+            runValidators: true 
+        });
+
         return res.status(200).json({
             success: true,
             message: "Menu item updated successfully",
