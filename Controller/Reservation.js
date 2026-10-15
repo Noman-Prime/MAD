@@ -182,6 +182,40 @@ export const getUserReservations = async (req, res) => {
     }
 };
 
+export const getReservation = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "User is not authenticated"
+            });
+        }
+
+        const reservation = await Reservation.findById(req.params.id)
+            .populate({ path: "user", select: "name email", model: User })
+            .populate("table");
+
+        if (!reservation) {
+            return res.status(404).json({
+                success: false,
+                message: "Reservation not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            reservation
+        });
+    } catch (error) {
+        console.error("Get reservation error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch reservation"
+        });
+    }
+};
+
 export const getAllReservations = async (req, res) => {
     try {
         if (!req.user) {
