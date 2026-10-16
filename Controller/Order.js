@@ -188,3 +188,52 @@ export const updateOrderStatus = async (req, res) => {
         });
     }
 };
+
+export const getOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid order ID",
+            });
+        }
+
+        const order = await Order.findById(id)
+            .populate("user", "name email")
+            .populate("orderItems.menuItem");
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found",
+            });
+        }
+
+        const isManagerUser =
+            req.user.role?.toLowerCase() === "manager";
+
+        if (
+            !isManagerUser &&
+            order.user._id.toString() !== req.user._id.toString()
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to view this order",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            order,
+        });
+    } catch (error) {
+        console.log("Get order by ID error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong while fetching order details",
+        });
+    }
+};
