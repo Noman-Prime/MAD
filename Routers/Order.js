@@ -6,7 +6,7 @@ const orderRouter = express.Router();
 orderRouter.post("/order", isAuthenticated, createOrder);
 orderRouter.get("/my/orders", isAuthenticated, getUserOrders);
 orderRouter.get("/all/orders", isAuthenticated, isManager("Manager"), getAllOrders);
-orderRouter.put("/orders/status/:id", isAuthenticated, isManager("Manager"), updateOrderStatus);
+orderRouter.put("/order/status/:id", isAuthenticated, isManager("Manager"), updateOrderStatus);
 
 export default orderRouter;
 
