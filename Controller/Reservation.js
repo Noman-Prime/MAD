@@ -388,3 +388,223 @@ export const deleteReservation = async (req, res) => {
         });
     }
 };
+
+
+export const checkTableAvailability = async (req, res) => {
+    try {
+        const { tableId, date, startTime, endTime, guests = 1 } = req.query;
+
+        if (!date || !startTime) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide date and start time"
+            });
+        }
+
+        if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(startTime)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid start time format. Use HH:mm"
+            });
+        }
+
+        const reservationDate = new Date(date);
+
+        if (Number.isNaN(reservationDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid reservation date"
+            });
+        }
+
+        const guestCount = Number(guests);
+
+        if (!Number.isInteger(guestCount) || guestCount < 1) {
+            return res.status(400).json({
+                success: false,
+                message: "Guests must be a positive integer"
+            });
+        }
+
+        const [startHours, startMinutesPart] = startTime
+            .split(":")
+            .map(Number);
+
+        const requestedStart =
+            startHours * 60 + startMinutesPart;
+
+        let requestedEnd;
+
+        if (endTime) {
+            if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(endTime)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid end time format. Use HH:mm"
+                });
+            }
+
+            const [endHours, endMinutesPart] = endTime
+                .split(":")
+                .map(Number);
+
+            requestedEnd = endHours * 60 + endMinutesPart;
+        } else {
+            requestedEnd = requestedStart + 60;
+        }
+
+        if (
+            requestedEnd <= requestedStart ||
+            requestedEnd > 24 * 60
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid reservation time range"
+            });
+        }
+
+        const dayStart = new Date(reservationDate);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const dayEnd = new Date(reservationDate);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        if (tableId) {
+            const selectedTable = await Table.findById(tableId);
+
+            if (!selectedTable) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Table not found"
+                });
+            }
+
+            const tableReservations = await Reservation.find({
+                table: selectedTable._id,
+                date: { $gte: dayStart, $lte: dayEnd },
+                status: { $in: ["Pending", "Confirmed"] }
+            });
+
+            const conflicts = tableReservations.filter((reservation) => {
+                const [existingStartHours, existingStartMinutes] =
+                    reservation.startTime.split(":").map(Number);
+
+                const [existingEndHours, existingEndMinutes] =
+                    reservation.endTime.split(":").map(Number);
+
+                const existingStart =
+                    existingStartHours * 60 + existingStartMinutes;
+
+                const existingEnd =
+                    existingEndHours * 60 + existingEndMinutes;
+
+                return (
+                    requestedStart < existingEnd &&
+                    requestedEnd > existingStart
+                );
+            });
+
+            let reason = null;
+
+            if (selectedTable.isAvailable === false) {
+                reason = "This table is not available";
+            } else if (guestCount > selectedTable.seats) {
+                reason = `This table can accommodate only ${selectedTable.seats} guests`;
+            } else if (conflicts.length > 0) {
+                reason = "This table is already reserved for that time";
+            }
+
+            const available = reason === null;
+
+            return res.status(200).json({
+                success: true,
+                available,
+                isAvailable: available,
+                table: selectedTable,
+                availableTables: available ? [selectedTable] : [],
+                conflictingReservations: conflicts.map((reservation) => ({
+                    startTime: reservation.startTime,
+                    endTime: reservation.endTime,
+                    status: reservation.status
+                })),
+                message: available
+                    ? "Table is available for the selected time"
+                    : reason
+            });
+        }
+
+        const allTables = await Table.find();
+
+        const reservations = await Reservation.find({
+            date: { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ["Pending", "Confirmed"] }
+        });
+
+        const tableResults = allTables.map((table) => {
+            const conflicts = reservations.filter((reservation) => {
+                if (
+                    String(reservation.table) !== String(table._id)
+                ) {
+                    return false;
+                }
+
+                const [existingStartHours, existingStartMinutes] =
+                    reservation.startTime.split(":").map(Number);
+
+                const [existingEndHours, existingEndMinutes] =
+                    reservation.endTime.split(":").map(Number);
+
+                const existingStart =
+                    existingStartHours * 60 + existingStartMinutes;
+
+                const existingEnd =
+                    existingEndHours * 60 + existingEndMinutes;
+
+                return (
+                    requestedStart < existingEnd &&
+                    requestedEnd > existingStart
+                );
+            });
+
+            let reason = null;
+
+            if (table.isAvailable === false) {
+                reason = "Table is not available";
+            } else if (guestCount > table.seats) {
+                reason = `Table capacity is ${table.seats} guests`;
+            } else if (conflicts.length > 0) {
+                reason = "Already reserved for this time";
+            }
+
+            return {
+                table,
+                available: reason === null,
+                reason
+            };
+        });
+
+        const availableTables = tableResults
+            .filter((item) => item.available)
+            .map((item) => item.table);
+
+        return res.status(200).json({
+            success: true,
+            date: date,
+            startTime,
+            endTime:
+                endTime ||
+                `${String(Math.floor(requestedEnd / 60)).padStart(2, "0")}:${String(requestedEnd % 60).padStart(2, "0")}`,
+            guests: guestCount,
+            totalTables: allTables.length,
+            availableCount: availableTables.length,
+            availableTables,
+            tables: tableResults
+        });
+    } catch (error) {
+        console.error("Check table availability error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to check table availability"
+        });
+    }
+};
