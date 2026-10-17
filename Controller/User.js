@@ -214,32 +214,39 @@ export const deleteUser = async (req, res) => {
 
 export const updateProfileImage = async (req, res) => {
     try {
-        const { profileImage } = req.body;
-        if (!profileImage) {
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: "Please provide a valid profile image",
+                message: "Please select a profile image",
             });
         }
 
         const user = await User.findById(req.user._id);
+
         if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "User not found",
             });
         }
-        if (user.profileImage && user.profileImage.public_id) {
+
+        const result = await cloudinaryUpload(req.file.buffer);
+
+        if (user.profileImage?.public_id) {
             await cloudinary.uploader.destroy(user.profileImage.public_id);
         }
 
-        user.profileImage = profileImage;
+        user.profileImage = {
+            url: result.secure_url,
+            public_id: result.public_id,
+        };
+
         await user.save();
 
         return res.status(200).json({
             success: true,
             message: "Profile image updated successfully",
-            User: user
+            user,
         });
     } catch (error) {
         console.log(error);
